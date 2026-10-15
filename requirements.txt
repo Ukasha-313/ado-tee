@@ -1,0 +1,33 @@
+# ADO-TEE
+
+**Automated Document Orchestrator & Task Extraction Engine**
+
+A local-first Python tool that scans folders, extracts document text, classifies files, detects duplicates, and identifies likely deadlines.
+
+## Features
+
+- Recursive local folder scanning
+- PDF, DOCX, TXT, Markdown, CSV, and code-file extraction
+- SHA-256 duplicate detection
+- Rule-based document classification
+- Deadline and task extraction
+- JSON master index
+- Local-first privacy
+
+## Install
+
+`ash
+pip install -r requirements.txt
+`
+
+## Run
+
+`ash
+python ado_tee_scanner.py
+`
+"@ | Out-File -Encoding utf8 README.md
+
+@"
+pypdf>=4.0
+python-docx>=1.1
+watchdog>=4.0
