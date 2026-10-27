@@ -1,10 +1,10 @@
 """
-ADO-TEE Background AI Document Agent
+ADO-TEE Background AI Document & Security Agent
 
-- Performs an AI-assisted startup scan
+- Performs an AI-assisted startup scan and Windows virus check
 - Automatically discovers safe user folders and available drives
-- Monitors folders recursively
-- Scans every new or modified file
+- Monitors folders recursively in real-time
+- Runs an automated threat scan on every new or downloaded file
 - Classifies documents, summarizes content, and extracts deadlines
 - Saves daily reports and a live background index
 """
@@ -24,6 +24,7 @@ from ado_tee_scanner import (
 
 from ai_engine import AIEngine
 from system_scanner import get_scan_roots
+from security_scanner import run_system_virus_scan, scan_single_file
 
 # Output locations
 REPORT_FOLDER = Path("output/reports")
@@ -46,7 +47,7 @@ FILE_SETTLE_DELAY = 2
 
 
 class AdoTeeAIFileHandler(FileSystemEventHandler):
-    """Processes new and modified files in watched folders."""
+    """Processes new and modified files in watched folders with automatic security checks."""
 
     def __init__(self, ai_engine):
         self.ai = ai_engine
@@ -88,13 +89,11 @@ class AdoTeeAIFileHandler(FileSystemEventHandler):
     def on_created(self, event):
         if event.is_directory:
             return
-
         self.handle_file(Path(event.src_path), "CREATED")
 
     def on_modified(self, event):
         if event.is_directory:
             return
-
         self.handle_file(Path(event.src_path), "MODIFIED")
 
     def handle_file(self, file_path: Path, event_type: str):
@@ -113,6 +112,10 @@ class AdoTeeAIFileHandler(FileSystemEventHandler):
 
             print(f"[{event_type}] {file_path}")
 
+            # 1. Automatically run virus/threat scan on the newly added or downloaded file
+            scan_single_file(file_path)
+
+            # 2. Extract text and perform AI task/deadline extraction
             text = extract_text(file_path)
             analysis = self.ai.analyze_document(file_path.name, text)
             file_hash = calculate_hash(file_path)
@@ -138,7 +141,7 @@ class AdoTeeAIFileHandler(FileSystemEventHandler):
                 f"Confidence: {record['ai_confidence']}"
             )
 
-            for deadline in record["deadlines"]:
+            for deadline in record.get("deadlines", []):
                 print(
                     f"[DEADLINE] {deadline['task']} | "
                     f"Date: {deadline['detected_date']} | "
@@ -178,8 +181,6 @@ class AdoTeeAIFileHandler(FileSystemEventHandler):
             json.dumps(report, indent=2, ensure_ascii=False),
             encoding="utf-8"
         )
-
-        print(f"[REPORT UPDATED] {report_file}")
 
     def save_to_background_index(self, record):
         """Maintain one continuous index of detected files."""
@@ -221,11 +222,15 @@ class AdoTeeAIFileHandler(FileSystemEventHandler):
 
 
 def run_startup_ai_scan():
-    """Scan discovered folders once when the service starts."""
+    """Run automated system virus check and scan discovered folders once when the service starts."""
     print("=" * 70)
-    print("ADO-TEE AI BACKGROUND SERVICE")
+    print("ADO-TEE BACKGROUND SERVICE & SECURITY AGENT")
     print("=" * 70)
-    print("[STARTUP SCAN] Beginning AI-assisted system scan...")
+    
+    # Run automatic system virus scan on startup / wake
+    run_system_virus_scan()
+
+    print("[STARTUP SCAN] Beginning AI-assisted system document scan...")
 
     ai = AIEngine()
     roots = get_scan_roots()
@@ -255,12 +260,6 @@ def run_startup_ai_scan():
                     }
 
                     all_records.append(record)
-
-                    print(
-                        f"[AI SCANNED] {file_path.name} → "
-                        f"{record['category']} | "
-                        f"Priority: {record['priority']}"
-                    )
 
                 except Exception as error:
                     print(f"[ERROR] {file_path}: {error}")
@@ -295,7 +294,7 @@ def run_startup_ai_scan():
 
 
 def start_background_monitoring():
-    """Monitor all discovered folders continuously."""
+    """Monitor all discovered folders continuously for new downloads and file changes."""
     ai = AIEngine()
     handler = AdoTeeAIFileHandler(ai)
     observer = Observer()
@@ -316,8 +315,8 @@ def start_background_monitoring():
     observer.start()
 
     print("=" * 70)
-    print("[ADO-TEE BACKGROUND SERVICE RUNNING]")
-    print("New and modified files will be scanned automatically.")
+    print("[ADO-TEE BACKGROUND & SECURITY SERVICE RUNNING]")
+    print("New downloads and modified files will be security-scanned and AI-analyzed automatically.")
     print("Press Ctrl+C to stop.")
     print("=" * 70)
 

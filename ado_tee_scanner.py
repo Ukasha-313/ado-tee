@@ -1,7 +1,7 @@
 """
 ADO-TEE Scanner Module
-Handles text extraction from .docx, .xlsx, .pdf, and .txt files,
-and calculates SHA-256 hashes for duplicate tracking.
+Handles file discovery, text extraction (.docx, .xlsx, .pdf, .txt),
+SHA-256 duplicate calculation, and folder analysis.
 """
 
 import hashlib
@@ -9,6 +9,12 @@ from pathlib import Path
 import docx
 import openpyxl
 import pypdf
+
+from ai_engine import AIEngine
+from system_scanner import discover_files
+
+# Master index output for manual scans
+OUTPUT_FILE = Path("output/file_index.json")
 
 # Supported document extensions
 TARGET_EXTENSIONS = {".docx", ".xlsx", ".pdf", ".txt", ".md", ".csv"}
@@ -52,3 +58,51 @@ def extract_text(file_path: Path) -> str:
         print(f"[ERROR] Failed to extract text from {file_path.name}: {error}")
     
     return text
+
+def scan_folder(folder_path: Path):
+    """
+    Scans a folder recursively, extracts text, checks for duplicates via hash,
+    and analyzes content for categories and deadlines using the AI engine.
+    """
+    ai = AIEngine()
+    files = []
+    deadlines = []
+    seen_hashes = set()
+
+    discovered_files = discover_files(folder_path)
+
+    for file_path in discovered_files:
+        if file_path.suffix.lower() not in TARGET_EXTENSIONS:
+            continue
+
+        text = extract_text(file_path)
+        file_hash = calculate_hash(file_path)
+
+        # Duplicate detection check
+        is_duplicate = False
+        if file_hash and file_hash in seen_hashes:
+            is_duplicate = True
+        elif file_hash:
+            seen_hashes.add(file_hash)
+
+        # AI analysis
+        analysis = ai.analyze_document(file_path.name, text)
+
+        file_record = {
+            "file_name": file_path.name,
+            "full_path": str(file_path),
+            "sha256": file_hash,
+            "duplicate": is_duplicate,
+            "text_length": len(text),
+            **analysis
+        }
+        files.append(file_record)
+
+        # Aggregate deadlines
+        for deadline in analysis.get("deadlines", []):
+            deadlines.append({
+                "file": file_path.name,
+                **deadline
+            })
+
+    return files, deadlines

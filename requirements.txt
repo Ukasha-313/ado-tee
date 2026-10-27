@@ -1,3 +1,6 @@
+@"
 pypdf>=4.0
 python-docx>=1.1
 watchdog>=4.0
+openpyxl>=3.1
+"@ | Out-File -Encoding utf8 requirements.txt
