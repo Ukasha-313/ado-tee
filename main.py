@@ -12,23 +12,29 @@ def print_help():
     print("  python main.py scan       - Run a one-time folder scan")
     print("=" * 60)
 
+def launch_gui():
+    import tkinter as tk
+    from ado_tee_gui import AdoTeeGUI
+    root = tk.Tk()
+    AdoTeeGUI(root)
+    root.mainloop()
+
 if __name__ == "__main__":
+    # If launched with no arguments (e.g. double-clicked .exe), default to GUI
     if len(sys.argv) < 2:
-        print_help()
+        launch_gui()
         sys.exit(0)
-        
+
     command = sys.argv[1].lower()
-    
+
     if command == "gui":
-        import tkinter as tk
-        from ado_tee_gui import AdoTeeGUI
-        root = tk.Tk()
-        AdoTeeGUI(root)
-        root.mainloop()
+        launch_gui()
     elif command == "background":
         from ado_tee_background import run_startup_ai_scan, start_background_monitoring
         run_startup_ai_scan()
         start_background_monitoring()
-    else:
-        print(f"[ERROR] Unknown command: {command}")
+    elif command == "help" or command == "-h" or command == "--help":
         print_help()
+    else:
+        # Fallback to GUI if an unknown argument or launcher flag is passed
+        launch_gui()

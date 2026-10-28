@@ -1,193 +1,317 @@
 """
-ADO-TEE GUI Module (Enhanced with Tabs, Startup Security Check, and Clickable Deadlines)
+ADO-TEE GUI Module — Next-Gen Cyber-Dark Dashboard
 """
 
 import json
+import os
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-import os
-import subprocess
+from tkinter import filedialog, messagebox, ttk
 
-from ado_tee_scanner import scan_folder, OUTPUT_FILE
+from ado_tee_scanner import OUTPUT_FILE, scan_folder
+from security_scanner import SECURITY_REPORT_FILE, run_system_virus_scan
 
 
 class AdoTeeGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("ADO-TEE — Document Intelligence & Task Engine")
-        self.root.geometry("1000x700")
-        self.root.configure(bg="#0f172a")
+        self.root.title("ADO-TEE — Document Intelligence & Threat Engine")
+        self.root.geometry("1120x740")
+        self.root.configure(bg="#0b132b")
 
-        self.selected_folder = tk.StringVar(
-            value=r"D:\Admin\hacktober\test-files"
-        )
-
-        # Run automated startup security/integrity check first
-        self.run_startup_security_check()
+        self.selected_folder = tk.StringVar(value=r"D:\Admin\hacktober\test-files")
+        self.security_status_var = tk.StringVar(value="SYSTEM HEALTH: OPTIMAL")
 
         self.build_header()
         self.build_notebook()
 
-    def run_startup_security_check(self):
-        """Simulates an automatic startup virus/integrity check for local documents."""
-        # You can replace this popup or log with a silent background check if preferred
-        print("[SECURITY] Running startup file integrity and safety check...")
+        # Run automated startup virus check asynchronously
+        threading.Thread(target=self.perform_startup_security_check, daemon=True).start()
 
     def build_header(self):
-        header = tk.Frame(self.root, bg="#0f172a")
-        header.pack(fill="x", padx=20, pady=12)
+        header = tk.Frame(self.root, bg="#0b132b")
+        header.pack(fill="x", padx=24, pady=(16, 8))
+
+        # Brand Container
+        brand_frame = tk.Frame(header, bg="#0b132b")
+        brand_frame.pack(side="left", anchor="w")
+
+        # Custom Logo Emblem
+        logo_canvas = tk.Canvas(brand_frame, width=48, height=48, bg="#0b132b", highlightthickness=0)
+        logo_canvas.pack(side="left", padx=(0, 14))
+        logo_canvas.create_oval(2, 2, 46, 46, outline="#38bdf8", width=2)
+        logo_canvas.create_oval(10, 10, 38, 38, outline="#1d4ed8", width=1.5)
+        logo_canvas.create_text(24, 24, text="A", fill="#38bdf8", font=("Segoe UI", 18, "bold"))
+
+        text_frame = tk.Frame(brand_frame, bg="#0b132b")
+        text_frame.pack(side="left", anchor="w")
 
         tk.Label(
-            header,
+            text_frame,
             text="ADO-TEE",
-            font=("Segoe UI", 22, "bold"),
+            font=("Segoe UI", 20, "bold"),
             fg="#38bdf8",
-            bg="#0f172a"
+            bg="#0b132b"
         ).pack(anchor="w")
 
         tk.Label(
-            header,
-            text="Automated Document Orchestrator & Task Extraction Engine",
-            font=("Segoe UI", 10),
-            fg="#cbd5e1",
-            bg="#0f172a"
+            text_frame,
+            text="AUTOMATED DOCUMENT ORCHESTRATOR & TASK EXTRACTION ENGINE",
+            font=("Segoe UI", 8, "bold"),
+            fg="#64748b",
+            bg="#0b132b"
         ).pack(anchor="w")
+
+        # Security Status Indicator Card
+        self.status_card = tk.Frame(header, bg="#1c2541", relief="flat")
+        self.status_card.pack(side="right", anchor="e", ipadx=14, ipady=6)
+
+        self.health_lbl = tk.Label(
+            self.status_card,
+            textvariable=self.security_status_var,
+            font=("Segoe UI", 9, "bold"),
+            fg="#22c55e",
+            bg="#1c2541"
+        )
+        self.health_lbl.pack()
 
     def build_notebook(self):
-        """Create tabbed interface for Scanner vs Assignments Hub."""
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("TNotebook", background="#0f172a", borderwidth=0)
-        style.configure("TNotebook.Tab", background="#1e293b", foreground="#e2e8f0", padding=[12, 8], font=("Segoe UI", 10, "bold"))
-        style.map("TNotebook.Tab", background=[("selected", "#38bdf8")], foreground=[("selected", "#0f172a")])
+        style.configure("TNotebook", background="#0b132b", borderwidth=0)
+        style.configure(
+            "TNotebook.Tab",
+            background="#1c2541",
+            foreground="#94a3b8",
+            padding=[16, 8],
+            font=("Segoe UI", 10, "bold"),
+            borderwidth=0
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", "#1e3a8a")],
+            foreground=[("selected", "#38bdf8")]
+        )
 
         notebook = ttk.Notebook(self.root)
-        notebook.pack(fill="both", expand=True, padx=20, pady=10)
+        notebook.pack(fill="both", expand=True, padx=24, pady=(0, 16))
 
-        # Tab 1: Scanner & Logs
-        self.tab_scanner = tk.Frame(notebook, bg="#0f172a")
-        notebook.add(self.tab_scanner, text="  🔍 Document Scanner  ")
+        # Tab 1: Live Scanner
+        self.tab_scanner = tk.Frame(notebook, bg="#0b132b")
+        notebook.add(self.tab_scanner, text="  🔍 Live Scanner  ")
         self.build_scanner_tab(self.tab_scanner)
 
-        # Tab 2: Dedicated Assignments & Deadlines Hub
-        self.tab_assignments = tk.Frame(notebook, bg="#0f172a")
+        # Tab 2: Assignments & Deadlines Hub
+        self.tab_assignments = tk.Frame(notebook, bg="#0b132b")
         notebook.add(self.tab_assignments, text="  📋 Assignments & Deadlines Hub  ")
         self.build_assignments_tab(self.tab_assignments)
 
+        # Tab 3: Security & Virus Report
+        self.tab_security = tk.Frame(notebook, bg="#0b132b")
+        notebook.add(self.tab_security, text="  🛡️ Security & Threat Report  ")
+        self.build_security_tab(self.tab_security)
+
     def build_scanner_tab(self, parent):
-        controls = tk.Frame(parent, bg="#1e293b")
-        controls.pack(fill="x", padx=10, pady=10)
+        controls = tk.Frame(parent, bg="#1c2541")
+        controls.pack(fill="x", padx=4, pady=10, ipady=4)
 
         tk.Label(
             controls,
-            text="Folder to scan:",
-            fg="#e2e8f0",
-            bg="#1e293b",
-            font=("Segoe UI", 10)
-        ).pack(anchor="w", padx=12, pady=(10, 4))
+            text="TARGET DIRECTORY TO MONITOR & SCAN:",
+            fg="#94a3b8",
+            bg="#1c2541",
+            font=("Segoe UI", 8, "bold")
+        ).pack(anchor="w", padx=16, pady=(10, 4))
 
-        row = tk.Frame(controls, bg="#1e293b")
-        row.pack(fill="x", padx=12, pady=(0, 12))
+        row = tk.Frame(controls, bg="#1c2541")
+        row.pack(fill="x", padx=16, pady=(0, 10))
 
         tk.Entry(
             row,
             textvariable=self.selected_folder,
             font=("Consolas", 10),
-            bg="#0f172a",
+            bg="#0b132b",
             fg="#e2e8f0",
             insertbackground="#e2e8f0",
             relief="flat"
-        ).pack(side="left", fill="x", expand=True, ipady=6)
+        ).pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 10))
 
-        ttk.Button(row, text="Browse", command=self.browse_folder).pack(side="left", padx=8)
-        ttk.Button(row, text="Start Scan", command=self.start_scan).pack(side="left")
+        tk.Button(
+            row, text="Browse", command=self.browse_folder,
+            bg="#334155", fg="#ffffff", font=("Segoe UI", 9, "bold"),
+            relief="flat", padx=14, pady=4, cursor="hand2"
+        ).pack(side="left", padx=4)
 
-        progress_frame = tk.Frame(parent, bg="#0f172a")
-        progress_frame.pack(fill="x", padx=10, pady=6)
+        tk.Button(
+            row, text="Start Scan", command=self.start_scan,
+            bg="#2563eb", fg="#ffffff", font=("Segoe UI", 9, "bold"),
+            relief="flat", padx=16, pady=4, cursor="hand2"
+        ).pack(side="left", padx=4)
+
+        progress_frame = tk.Frame(parent, bg="#0b132b")
+        progress_frame.pack(fill="x", padx=4, pady=4)
 
         self.status_label = tk.Label(
             progress_frame,
-            text="Ready. Select a folder and start scanning.",
+            text="Ready. Select target folder and initiate extraction.",
             fg="#94a3b8",
-            bg="#0f172a",
-            font=("Segoe UI", 10)
+            bg="#0b132b",
+            font=("Segoe UI", 9)
         )
         self.status_label.pack(anchor="w")
 
-        self.progress = ttk.Progressbar(progress_frame, mode="indeterminate", length=920)
+        self.progress = ttk.Progressbar(progress_frame, mode="indeterminate", length=1000)
         self.progress.pack(fill="x", pady=6)
 
         self.stats_label = tk.Label(
             progress_frame,
-            text="Files scanned: 0 | Deadlines found: 0",
+            text="Files Scanned: 0 | Deadlines Extracted: 0",
             fg="#38bdf8",
-            bg="#0f172a",
+            bg="#0b132b",
             font=("Segoe UI", 10, "bold")
         )
         self.stats_label.pack(anchor="w")
 
-        results_frame = tk.Frame(parent, bg="#0f172a")
-        results_frame.pack(fill="both", expand=True, padx=10, pady=6)
+        results_frame = tk.Frame(parent, bg="#1c2541")
+        results_frame.pack(fill="both", expand=True, padx=4, pady=10)
 
         tk.Label(
             results_frame,
-            text="Live scan log:",
+            text="LIVE EXTRACTION LOG",
             fg="#e2e8f0",
-            bg="#0f172a",
-            font=("Segoe UI", 10, "bold")
-        ).pack(anchor="w", pady=(0, 4))
+            bg="#1c2541",
+            font=("Segoe UI", 9, "bold")
+        ).pack(anchor="w", padx=16, pady=(10, 4))
 
         self.output_box = tk.Text(
             results_frame,
-            bg="#020617",
-            fg="#e2e8f0",
+            bg="#0b132b",
+            fg="#38bdf8",
             insertbackground="#e2e8f0",
             font=("Consolas", 9),
-            relief="flat",
-            height=14
+            relief="flat"
         )
-        self.output_box.pack(fill="both", expand=True)
+        self.output_box.pack(fill="both", expand=True, padx=16, pady=(0, 14))
 
     def build_assignments_tab(self, parent):
-        """Dedicated screen for pending university assignments and lab tasks with clickable file paths."""
-        frame = tk.Frame(parent, bg="#0f172a")
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        frame = tk.Frame(parent, bg="#1c2541")
+        frame.pack(fill="both", expand=True, padx=4, pady=10)
+
+        top_bar = tk.Frame(frame, bg="#1c2541")
+        top_bar.pack(fill="x", padx=16, pady=12)
 
         tk.Label(
-            frame,
-            text="Detected Assignments & Lab Task Deadlines",
+            top_bar,
+            text="DETECTED LAB TASKS & ASSIGNMENT DEADLINES",
             fg="#38bdf8",
-            bg="#0f172a",
-            font=("Segoe UI", 12, "bold")
-        ).pack(anchor="w", pady=(0, 8))
+            bg="#1c2541",
+            font=("Segoe UI", 10, "bold")
+        ).pack(side="left", anchor="w")
 
-        # Treeview table for assignments
+        tk.Button(
+            top_bar, text="🔄 Reload Index", command=self.load_deadlines_into_hub,
+            bg="#334155", fg="#ffffff", font=("Segoe UI", 8, "bold"),
+            relief="flat", padx=12, pady=4, cursor="hand2"
+        ).pack(side="right", anchor="e")
+
+        table_frame = tk.Frame(frame, bg="#0b132b")
+        table_frame.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+
         columns = ("priority", "task", "date", "file_path")
-        self.tree = ttk.Treeview(frame, columns=columns, show="headings", height=18)
-        
-        self.tree.heading("priority", text="Priority")
-        self.tree.heading("task", text="Task / Assignment Description")
-        self.tree.heading("date", text="Due Date")
-        self.tree.heading("file_path", text="File Location (Double-click to open)")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=16)
 
-        self.tree.column("priority", width=90, anchor="center")
-        self.tree.column("task", width=280, anchor="w")
-        self.tree.column("date", width=110, anchor="center")
-        self.tree.column("file_path", width=420, anchor="w")
+        self.tree.heading("priority", text="PRIORITY")
+        self.tree.heading("task", text="ASSIGNMENT / TASK DESCRIPTION")
+        self.tree.heading("date", text="DUE DATE")
+        self.tree.heading("file_path", text="FILE LOCATION (DOUBLE-CLICK TO OPEN)")
 
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
+        self.tree.column("priority", width=110, anchor="center")
+        self.tree.column("task", width=320, anchor="w")
+        self.tree.column("date", width=120, anchor="center")
+        self.tree.column("file_path", width=460, anchor="w")
+
+        style = ttk.Style()
+        style.configure("Treeview", background="#0b132b", foreground="#e2e8f0", fieldbackground="#0b132b", rowheight=28, font=("Segoe UI", 9))
+        style.configure("Treeview.Heading", background="#1c2541", foreground="#38bdf8", font=("Segoe UI", 9, "bold"))
+
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Bind double click to open file
         self.tree.bind("<Double-1>", self.open_selected_file)
+        self.load_deadlines_into_hub()
 
-        refresh_btn = ttk.Button(frame, text="Reload Deadlines from Index", command=self.load_deadlines_into_hub)
-        refresh_btn.pack(side="bottom", anchor="e", pady=10)
+    def build_security_tab(self, parent):
+        frame = tk.Frame(parent, bg="#1c2541")
+        frame.pack(fill="both", expand=True, padx=4, pady=10)
+
+        top_bar = tk.Frame(frame, bg="#1c2541")
+        top_bar.pack(fill="x", padx=16, pady=12)
+
+        tk.Label(
+            top_bar,
+            text="SYSTEM VIRUS & THREAT SCAN REPORT",
+            fg="#38bdf8",
+            bg="#1c2541",
+            font=("Segoe UI", 10, "bold")
+        ).pack(side="left", anchor="w")
+
+        tk.Button(
+            top_bar, text="⚡ Run Virus Scan Now", command=self.trigger_manual_virus_scan,
+            bg="#2563eb", fg="#ffffff", font=("Segoe UI", 8, "bold"),
+            relief="flat", padx=12, pady=4, cursor="hand2"
+        ).pack(side="right", anchor="e")
+
+        self.security_box = tk.Text(
+            frame,
+            bg="#0b132b",
+            fg="#22c55e",
+            insertbackground="#e2e8f0",
+            font=("Consolas", 10),
+            relief="flat"
+        )
+        self.security_box.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+
+    def perform_startup_security_check(self):
+        self.security_status_var.set("🛡️ RUNNING VIRUS SCAN...")
+        report = run_system_virus_scan()
+        self.root.after(0, self.update_security_ui, report)
+
+    def trigger_manual_virus_scan(self):
+        self.security_status_var.set("🛡️ SCANNING SYSTEM...")
+        self.security_box.delete("1.0", "end")
+        self.security_box.insert("end", "[SECURITY] Initiating manual threat scan via Windows Defender...\n")
+
+        def task():
+            report = run_system_virus_scan()
+            self.root.after(0, self.update_security_ui, report)
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def update_security_ui(self, report):
+        status = report.get("status", "CLEAN")
+        if status == "THREAT_FOUND":
+            self.security_status_var.set("⚠️ THREAT DETECTED")
+            self.health_lbl.config(fg="#ef4444")
+        else:
+            self.security_status_var.set("🛡️ SYSTEM HEALTH: OPTIMAL")
+            self.health_lbl.config(fg="#22c55e")
+
+        self.security_box.delete("1.0", "end")
+        self.security_box.insert("end", f"LAST SCAN TIMESTAMP: {report.get('last_scan_timestamp', 'N/A')}\n")
+        self.security_box.insert("end", f"SCAN ENGINE:         {report.get('engine', 'Native Defender')}\n")
+        self.security_box.insert("end", f"OVERALL STATUS:      {status}\n")
+        self.security_box.insert("end", f"THREATS FOUND:       {report.get('threats_count', 0)}\n")
+        self.security_box.insert("end", "-" * 60 + "\n")
+
+        if report.get("threat_details"):
+            for threat in report["threat_details"]:
+                self.security_box.insert("end", f"[WARNING] {threat}\n")
+        else:
+            self.security_box.insert("end", "[SUCCESS] Zero malicious threats or viruses detected on system.\n")
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -207,17 +331,13 @@ class AdoTeeGUI:
 
         self.output_box.delete("1.0", "end")
         self.progress.start(20)
-        self.status_label.config(text="Scanning files, extracting text, checking duplicates...", fg="#facc15")
+        self.status_label.config(text="Scanning target files, parsing documents...", fg="#facc15")
 
-        threading.Thread(
-            target=self.run_scan,
-            args=(folder,),
-            daemon=True
-        ).start()
+        threading.Thread(target=self.run_scan, args=(folder,), daemon=True).start()
 
     def run_scan(self, folder):
         try:
-            self.log(f"[START] Scanning: {folder}")
+            self.log(f"[START] Scanning target: {folder}")
             files, deadlines = scan_folder(folder)
 
             for file_record in files:
@@ -237,11 +357,7 @@ class AdoTeeGUI:
                 "deadlines": deadlines
             }
 
-            OUTPUT_FILE.write_text(
-                json.dumps(result, indent=2, ensure_ascii=False),
-                encoding="utf-8"
-            )
-
+            OUTPUT_FILE.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
             self.root.after(0, self.finish_scan, len(files), len(deadlines))
 
         except Exception as error:
@@ -249,19 +365,17 @@ class AdoTeeGUI:
 
     def finish_scan(self, file_count, deadline_count):
         self.progress.stop()
-        self.status_label.config(text="Scan complete.", fg="#22c55e")
-        self.stats_label.config(text=f"Files scanned: {file_count} | Deadlines found: {deadline_count}")
-        self.log("[DONE] Results saved to output/file_index.json")
-        # Auto-refresh the assignments hub tab
+        self.status_label.config(text="Scan sequence completed.", fg="#22c55e")
+        self.stats_label.config(text=f"Files Scanned: {file_count} | Deadlines Extracted: {deadline_count}")
+        self.log("[DONE] Index saved to output/file_index.json")
         self.load_deadlines_into_hub()
 
     def scan_failed(self, error):
         self.progress.stop()
-        self.status_label.config(text="Scan failed.", fg="#ef4444")
+        self.status_label.config(text="Scan sequence failed.", fg="#ef4444")
         self.log(f"[ERROR] {error}")
 
     def load_deadlines_into_hub(self):
-        """Loads saved deadlines from output/file_index.json into the Assignments tab table."""
         for item in self.tree.get_children():
             self.tree.delete(item)
 
@@ -270,13 +384,12 @@ class AdoTeeGUI:
 
         try:
             data = json.loads(OUTPUT_FILE.read_text(encoding="utf-8"))
-            # Match deadlines back to their file paths
             file_path_map = {f["file_name"]: f["full_path"] for f in data.get("files", [])}
 
             for deadline in data.get("deadlines", []):
                 file_name = deadline.get("file", "")
                 full_path = file_path_map.get(file_name, "Path not found")
-                
+
                 self.tree.insert(
                     "",
                     "end",
@@ -291,7 +404,6 @@ class AdoTeeGUI:
             print(f"[ERROR loading hub]: {e}")
 
     def open_selected_file(self, event):
-        """Double-clicking a deadline row opens the underlying file on the computer."""
         selected_item = self.tree.selection()
         if not selected_item:
             return
@@ -301,7 +413,7 @@ class AdoTeeGUI:
 
         if file_path and Path(file_path).exists():
             try:
-                os.startfile(file_path)  # Opens the file with default Windows app
+                os.startfile(file_path)
             except Exception as e:
                 messagebox.showerror("Error", f"Could not open file:\n{e}")
         else:
